@@ -51,26 +51,10 @@ register_map = {
 }
 
 
-def ctrl_reg1(Ord30,LPen:bool,Xen:bool,Yen:bool,Zen:bool): #Temp working
-    valid_power_modes = ['off','1hz','10hz','25hz','50hz','100hz','200hz','400hz','1.6khz','1.25khz','5khz']
-    
-    #LPen = Low Power Dissipation
-    
+
     
     
     # Set with ORD3-0 bits
-    psu_mode = {
-        '0000': 'off',
-        '0001': '1Hz',
-        '0010': '10Hz',
-        '0011': '25Hz',
-        '0100': '50Hz',
-        '0101': '100Hz',
-        '0110': '200Hz',
-        '0111': '400Hz',
-        '1000': 'LP1.6KHz',
-        '1001': '1.25kHz/LP5KHz' # Will need to figure out how to deal with these
-    } 
 
 while not i2c.try_lock():
     pass
@@ -123,6 +107,32 @@ class SC7A20():
             raise ValueError("Invalid Option!")
         else:
             return options[choice]
+        
+    def _set_creg1(self, power_mode:str='50hz', LPen:bool=True, Xen:bool=True, Yen:bool=True, Zen:bool=True):   
+    
+        x_bit = 0b1 if Xen else 0b0
+        y_bit = 0b1 if Yen else 0b0
+        z_bit = 0b1 if Zen else 0b0
+        lpen_bit = 0b1 if LPen else 0b0
+        power_bits = None
+        #LPen = Low Power Dissipation
+        
+        psu_modes = {
+            'off': 0b0000,
+            '1hz': 0b0001,
+            '10hz': 0b0010,
+            '25hz': 0b0011,
+            '50hz': 0b0100,
+            '100hz': 0b0101,
+            '200hz': 0b0110,
+            '400hz': 0b0111,
+            '1.6khz': 0b1000,
+            '1.25khz': 0b1001,
+            '5khz': 0b1001}
+        power_bits = self._bits_options_parse(psu_modes, power_mode.lower())
+        byte = (power_bits << 4) + (lpen_bit << 3) + (x_bit << 2) +  (y_bit << 1) + z_bit
+        self.i2c.writeto(self.acclr, bytes([register_map["CTRL_REG1"], byte]))
+        
     def _set_creg4(self,scale:int=2, bdu:bool=False, ble:bool=False, hr:bool=False, self_test:str='normal'):
         #BDU: Block Data Update - Uutput is not updated until both MSB and LSB are read
         #BLE: Big/Little-Endians. Enabling will send high byte data in low byte address?
@@ -157,7 +167,8 @@ class SC7A20():
         #self._lock_i2c()
         
         # WRITE CTRL REG1 TO 0x4F (Probably 01001111) This could be settings the output rate setting to "Normal l / low power passition mode (50 Hz)"
-        self.i2c.writeto(self.acclr, bytes([register_map["CTRL_REG1"], 0x4F]))
+        #self.i2c.writeto(self.acclr, bytes([register_map["CTRL_REG1"], 0x4F]))
+        self._set_creg1() # Default settings
         self.i2c.writeto(self.acclr, bytes([register_map["CTRL_REG2"], 0x00]))
         self.i2c.writeto(self.acclr, bytes([register_map["CTRL_REG3"], 0x00]))
         # WRITE CTRL REG4 TO 0x10 (Probably 00010000) I think this is setting the scale to +/-4Gs
